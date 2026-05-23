@@ -901,6 +901,114 @@ function ActionLogPanel() {
   );
 }
 
+// ─── Orion Chat Panel ─────────────────────────────────────────────────────────
+const ORION_SYSTEM = `You are Orion, the autonomous AI operations agent for OKDF (Operator Kit for Digital Freedom). You have access to Make.com, Notion, Stripe, Netlify, and Slack via MCP tools. Answer questions about operations concisely, and take actions when instructed.`;
+
+async function callOrion(messages) {
+  try {
+    const body = {
+      model: "claude-sonnet-4-6",
+      max_tokens: 2000,
+      system: ORION_SYSTEM,
+      messages,
+      mcp_servers: [MCP_MAKE, MCP_NOTION, MCP_STRIPE, MCP_NETLIFY, MCP_SLACK],
+    };
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return await res.json();
+  } catch(e) { return { _err: e.message }; }
+}
+
+function OrionChatPanel() {
+  const [history, setHistory] = useState([]);
+  const [input, setInput] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [history, thinking]);
+
+  const send = async () => {
+    if (!input.trim() || thinking) return;
+    const userMsg = { role: "user", content: input.trim() };
+    const newHistory = [...history, userMsg];
+    setHistory(newHistory);
+    setInput("");
+    setThinking(true);
+    const data = await callOrion(newHistory);
+    const reply = getText(data) || (data._err ? `Error: ${data._err}` : "No response.");
+    setHistory(h => [...h, { role: "assistant", content: reply }]);
+    setThinking(false);
+  };
+
+  return (
+    <Panel title="Orion — Direct Chat" status={thinking ? "loading" : "ok"} accent={C.cyan}>
+      <div ref={scrollRef} style={{
+        display: "flex", flexDirection: "column", gap: 6,
+        maxHeight: 240, overflowY: "auto", marginBottom: 10, minHeight: 60,
+      }}>
+        {history.length === 0 && !thinking ? (
+          <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>
+            Send instructions or ask Orion anything…
+          </div>
+        ) : history.map((msg, i) => (
+          <div key={i} style={{
+            padding: "6px 10px", borderRadius: 5,
+            background: msg.role === "user" ? `${C.cyan}12` : C.surface,
+            border: `1px solid ${msg.role === "user" ? `${C.cyan}30` : C.border}`,
+            alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
+            maxWidth: "90%",
+          }}>
+            <div style={{ fontSize: 8, color: msg.role === "user" ? C.cyan : C.gold, fontFamily: "'DM Mono', monospace", marginBottom: 2, fontWeight: 600 }}>
+              {msg.role === "user" ? "YOU" : "ORION"}
+            </div>
+            <div style={{ fontSize: 10, color: C.text, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+              {msg.content}
+            </div>
+          </div>
+        ))}
+        {thinking && (
+          <div style={{
+            padding: "6px 10px", borderRadius: 5,
+            background: C.surface, border: `1px solid ${C.border}`, alignSelf: "flex-start",
+          }}>
+            <div style={{ fontSize: 8, color: C.gold, fontFamily: "'DM Mono', monospace", marginBottom: 2, fontWeight: 600 }}>ORION</div>
+            <div style={{ fontSize: 10, color: C.muted, fontFamily: "'DM Mono', monospace" }}>Thinking…</div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 6 }}>
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && !e.shiftKey && send()}
+          placeholder="Instruct Orion…"
+          disabled={thinking}
+          style={{
+            flex: 1, background: C.surface, border: `1px solid ${C.border}`,
+            borderRadius: 5, padding: "6px 10px",
+            color: C.text, fontSize: 10, fontFamily: "'DM Mono', monospace", outline: "none",
+          }}
+          onFocus={e => e.target.style.borderColor = C.cyan}
+          onBlur={e => e.target.style.borderColor = C.border}
+        />
+        <Btn small color={C.cyan} disabled={thinking || !input.trim()} onClick={send}>
+          {thinking ? "…" : "SEND"}
+        </Btn>
+      </div>
+      {history.length > 0 && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+          <Btn small color={C.muted} onClick={() => setHistory([])}>CLEAR</Btn>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 // ─── Slack Panel ──────────────────────────────────────────────────────────────
 const SLACK_CHANNELS = [
   { id: "C0B123W9PMG", name: "all-okdf-ai-agency" },
@@ -1146,6 +1254,7 @@ export default function App() {
             <OrionMemoryPanel onData={setOrionData} />
             <TasksPanel />
             <ActionLogPanel />
+            <OrionChatPanel />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <StripePanel onData={setStripeData} />
