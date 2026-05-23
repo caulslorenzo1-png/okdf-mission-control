@@ -16,24 +16,24 @@ const SCENARIOS   = [
 ];
 
 const C = {
-  bg:           "#050609",
-  surface:      "#0B0E18",
-  panel:        "#0E1220",
-  border:       "#1C2438",
-  borderBright: "#2A3555",
+  bg:           "#04050C",
+  surface:      "#090C18",
+  panel:        "#0C1020",
+  border:       "#182035",
+  borderBright: "#253350",
   gold:         "#D4931F",
   goldBright:   "#F0A82A",
-  goldDim:      "#6B4A10",
-  green:        "#1DB954",
-  red:          "#E53935",
-  amber:        "#F5A623",
-  cyan:         "#00BCD4",
-  purple:       "#9C6FE4",
-  text:         "#C8D4E8",
-  textDim:      "#7A8FAA",
-  muted:        "#4A5568",
-  ghost:        "#1E2740",
-  dim:          "#1A2030",
+  goldDim:      "#5C3F0E",
+  green:        "#10B981",
+  red:          "#EF4444",
+  amber:        "#F59E0B",
+  cyan:         "#06B6D4",
+  purple:       "#A78BFA",
+  text:         "#CBD5E8",
+  textDim:      "#6B7FA0",
+  muted:        "#3D4F68",
+  ghost:        "#1A2238",
+  dim:          "#141B2E",
 };
 
 // ─── Auto-refresh ─────────────────────────────────────────────────────────────
@@ -189,35 +189,44 @@ function Panel({ title, status, children, accent, minHeight }) {
   const ac = accent || C.gold;
   return (
     <div style={{
-      background: `linear-gradient(160deg, #101623 0%, ${C.panel} 100%)`,
+      background: `linear-gradient(150deg, #0D1525 0%, #090D1C 50%, ${C.panel} 100%)`,
       border: `1px solid ${C.border}`,
       borderTop: `2px solid ${ac}`,
-      boxShadow: `0 0 28px ${ac}18, 0 8px 40px #00000070`,
-      borderRadius: 8, padding: "15px 17px",
+      borderRadius: 12,
+      padding: "16px 18px",
       display: "flex", flexDirection: "column", gap: 0,
       minHeight: minHeight || "auto",
+      position: "relative", overflow: "hidden",
+      boxShadow: `0 0 0 1px ${ac}0A inset, 0 1px 0 0 ${ac}30 inset, 0 8px 32px #00000080, 0 0 48px ${ac}06`,
     }}>
       <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        paddingBottom: 11, marginBottom: 13,
+        position: "absolute", top: 0, left: 0, right: 0, height: 80,
+        background: `linear-gradient(180deg, ${ac}0C 0%, transparent 100%)`,
+        pointerEvents: "none", borderRadius: "12px 12px 0 0",
+      }} />
+      <div style={{
+        display: "flex", alignItems: "center", gap: 9,
+        paddingBottom: 12, marginBottom: 14,
         borderBottom: `1px solid ${C.border}`,
+        position: "relative",
       }}>
         {status === "loading" ? <SpinDot /> : <Pulse color={statusColor} />}
         <span style={{
           fontSize: 10, fontFamily: "'DM Mono', monospace", fontWeight: 700,
-          color: C.textDim, letterSpacing: "0.18em", textTransform: "uppercase", flex: 1,
+          color: C.textDim, letterSpacing: "0.2em", textTransform: "uppercase", flex: 1,
         }}>{title}</span>
         {statusLabel && (
           <span style={{
             fontSize: 8, color: statusColor,
-            background: `${statusColor}18`,
-            border: `1px solid ${statusColor}40`,
-            borderRadius: 3, padding: "1px 5px",
-            fontFamily: "'DM Mono', monospace", letterSpacing: "0.1em",
+            background: `${statusColor}12`,
+            border: `1px solid ${statusColor}30`,
+            borderRadius: 4, padding: "2px 7px",
+            fontFamily: "'DM Mono', monospace", letterSpacing: "0.12em",
+            boxShadow: `0 0 10px ${statusColor}18`,
           }}>{statusLabel}</span>
         )}
       </div>
-      {children}
+      <div style={{ position: "relative" }}>{children}</div>
     </div>
   );
 }
@@ -231,9 +240,10 @@ function CardRow({ children, style }) {
       style={{
         background: hov ? C.ghost : C.surface,
         border: `1px solid ${hov ? C.borderBright : C.border}`,
-        borderRadius: 5, padding: "9px 11px",
+        borderLeft: hov ? `2px solid ${C.gold}` : `2px solid transparent`,
+        borderRadius: 6, padding: "9px 11px",
         display: "flex", alignItems: "center", gap: 8,
-        transition: "all 0.12s", ...style,
+        transition: "all 0.15s", ...style,
       }}
     >{children}</div>
   );
@@ -1367,47 +1377,59 @@ function Header({ countdown }) {
   return (
     <div style={{
       display: "flex", justifyContent: "space-between", alignItems: "center",
-      marginBottom: 20, paddingBottom: 18,
+      marginBottom: 22, paddingBottom: 20,
       borderBottom: `1px solid ${C.border}`,
     }}>
       <div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 8 }}>
           <span style={{
-            fontSize: 30, fontFamily: "'DM Mono', monospace", fontWeight: 700,
-            color: C.gold, letterSpacing: "0.05em",
-            textShadow: `0 0 40px ${C.gold}55`,
+            fontSize: 36, fontFamily: "'DM Mono', monospace", fontWeight: 700,
+            background: `linear-gradient(135deg, ${C.goldBright} 0%, ${C.gold} 60%)`,
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+            letterSpacing: "0.06em",
+            filter: `drop-shadow(0 0 20px ${C.gold}60)`,
           }}>OKDF</span>
-          <span style={{
-            fontSize: 18, fontFamily: "'DM Mono', monospace", fontWeight: 300,
-            color: C.text, letterSpacing: "0.06em", opacity: 0.55,
-          }}>MISSION CONTROL</span>
-        </div>
-        <div style={{
-          fontSize: 9, color: C.muted, fontFamily: "'DM Mono', monospace",
-          letterSpacing: "0.26em",
-        }}>
-          OPERATOR KIT FOR DIGITAL FREEDOM — v3.0
+          <div style={{
+            display: "flex", flexDirection: "column", justifyContent: "center", gap: 2,
+          }}>
+            <span style={{
+              fontSize: 13, fontFamily: "'DM Mono', monospace", fontWeight: 500,
+              color: C.text, letterSpacing: "0.2em", opacity: 0.7,
+            }}>MISSION CONTROL</span>
+            <span style={{
+              fontSize: 8, color: C.muted, fontFamily: "'DM Mono', monospace",
+              letterSpacing: "0.22em",
+            }}>OPERATOR KIT FOR DIGITAL FREEDOM — v3.0</span>
+          </div>
         </div>
       </div>
-      <div style={{ textAlign: "right" }}>
+      <div style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
         <div style={{
-          fontSize: 30, fontFamily: "'DM Mono', monospace", fontWeight: 700,
+          fontSize: 32, fontFamily: "'DM Mono', monospace", fontWeight: 700,
           color: C.text, letterSpacing: "0.04em", fontVariantNumeric: "tabular-nums",
-          lineHeight: 1,
+          lineHeight: 1, textShadow: `0 0 30px ${C.text}20`,
         }}>
           {now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
         </div>
         <div style={{
-          fontSize: 9, color: C.muted, fontFamily: "'DM Mono', monospace",
-          letterSpacing: "0.14em", marginTop: 5,
+          fontSize: 9, color: C.muted, fontFamily: "'DM Mono', monospace", letterSpacing: "0.14em",
         }}>
           {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).toUpperCase()}
         </div>
         <div style={{
-          fontSize: 9, color: C.muted, fontFamily: "'DM Mono', monospace",
-          letterSpacing: "0.12em", marginTop: 4, opacity: 0.6,
+          display: "inline-flex", alignItems: "center", gap: 5,
+          background: `${C.gold}0E`, border: `1px solid ${C.gold}25`,
+          borderRadius: 5, padding: "3px 9px",
         }}>
-          REFRESH IN {mm}:{ss}
+          <span style={{
+            width: 5, height: 5, borderRadius: "50%", background: C.gold,
+            boxShadow: `0 0 6px ${C.gold}`,
+            animation: "glow-pulse 2s ease-in-out infinite", display: "inline-block",
+          }} />
+          <span style={{
+            fontSize: 9, color: C.gold, fontFamily: "'DM Mono', monospace",
+            letterSpacing: "0.12em", fontVariantNumeric: "tabular-nums",
+          }}>REFRESH {mm}:{ss}</span>
         </div>
       </div>
     </div>
@@ -1446,30 +1468,44 @@ export default function App() {
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
           background: ${C.bg};
-          background-image: radial-gradient(${C.border}70 1px, transparent 1px);
-          background-size: 28px 28px;
+          background-image:
+            radial-gradient(${C.border}50 1px, transparent 1px);
+          background-size: 24px 24px;
         }
         @keyframes glow-pulse {
           0%, 100% { opacity: 1; }
-          50% { opacity: 0.45; }
+          50% { opacity: 0.4; }
         }
         @keyframes ripple {
-          0%   { transform: scale(0.5); opacity: 0.7; }
-          100% { transform: scale(2.4); opacity: 0; }
+          0%   { transform: scale(0.5); opacity: 0.6; }
+          100% { transform: scale(2.6); opacity: 0; }
         }
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
-        ::-webkit-scrollbar-track { background: ${C.bg}; }
-        ::-webkit-scrollbar-thumb { background: ${C.ghost}; border-radius: 2px; }
-        ::placeholder { color: ${C.muted}; opacity: 0.6; }
+        ::-webkit-scrollbar { width: 3px; height: 3px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: ${C.borderBright}; }
+        ::placeholder { color: ${C.muted}; opacity: 0.5; }
+        input, textarea, button { font-family: inherit; }
       `}</style>
 
       {/* Ambient top glow */}
       <div style={{
-        position: "fixed", top: 0, left: 0, right: 0, height: 320,
-        background: `radial-gradient(ellipse 70% 100% at 50% -10%, ${C.goldDim}20 0%, transparent 70%)`,
+        position: "fixed", top: 0, left: 0, right: 0, height: 400,
+        background: `radial-gradient(ellipse 80% 100% at 50% -15%, ${C.goldDim}28 0%, transparent 65%)`,
+        pointerEvents: "none", zIndex: 0,
+      }} />
+      {/* Side vignettes */}
+      <div style={{
+        position: "fixed", top: 0, left: 0, bottom: 0, width: 120,
+        background: `linear-gradient(90deg, ${C.bg}90 0%, transparent 100%)`,
+        pointerEvents: "none", zIndex: 0,
+      }} />
+      <div style={{
+        position: "fixed", top: 0, right: 0, bottom: 0, width: 120,
+        background: `linear-gradient(270deg, ${C.bg}90 0%, transparent 100%)`,
         pointerEvents: "none", zIndex: 0,
       }} />
 
