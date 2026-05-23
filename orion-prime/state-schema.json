@@ -1,0 +1,18 @@
+{
+  "$comment": "Schema for orion_state record in Make.com data store ID 99050, key: orion_state",
+  "status": "green",
+  "run_count": 0,
+  "last_run": null,
+  "ops_summary": "No cycles run yet.",
+  "active_flags": "none",
+  "agent_tasks": "none",
+  "last_decision": "none",
+  "metrics": {
+    "stripe_balance_cents": 0,
+    "revenue_24h_cents": 0,
+    "payments_24h": 0,
+    "failed_24h": 0
+  },
+  "escalations_pending": 0,
+  "actions_this_cycle": []
+}
