@@ -6,7 +6,9 @@ const MCP_STRIPE  = { type: "url", url: "https://mcp.stripe.com",              n
 const MCP_NETLIFY = { type: "url", url: "https://netlify-mcp.netlify.app/mcp", name: "netlify" };
 const MCP_NOTION  = { type: "url", url: "https://mcp.notion.com",              name: "notion"  };
 const MCP_SLACK   = { type: "url", url: "https://mcp.slack.com/mcp",           name: "slack"   };
-const NETLIFY_ID  = "d6da9efd-1edf-49ed-b46f-c039a43c0bf2";
+const NETLIFY_ID    = "d6da9efd-1edf-49ed-b46f-c039a43c0bf2";
+const REVENUE_GOAL  = 500000; // cents — $5,000/mo target
+const GITHUB_REPO   = "caulslorenzo1-png/okdf-mission-control";
 const TEAM_ID     = 2037936;
 const SCENARIOS   = [
   { id: 5041624, label: "Orion Prime CEO Runner", role: "Every 4hrs — ops review + agent delegation" },
@@ -549,6 +551,63 @@ function StripePanel({ onData }) {
   );
 }
 
+// ─── Revenue Goal Panel ───────────────────────────────────────────────────────
+function RevenueGoalPanel() {
+  const [revenue, setRevenue] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const monthStart = Math.floor(new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime() / 1000);
+    const data = await callClaude(
+      `Use the stripe MCP to list payment intents created after unix timestamp ${monthStart} (start of this month). Filter to succeeded status only. Sum their amounts in cents. Return JSON: {"total_cents": number, "count": number}`,
+      [MCP_STRIPE]
+    );
+    setRevenue(tryJSON(getText(data)));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, []);
+
+  const pct = revenue ? Math.min(100, Math.round((revenue.total_cents / REVENUE_GOAL) * 100)) : 0;
+  const color = pct >= 100 ? C.green : pct >= 60 ? C.amber : C.red;
+  const panelStatus = loading ? "loading" : revenue ? (pct >= 100 ? "ok" : "idle") : "err";
+
+  return (
+    <Panel title="Monthly Revenue Goal" status={panelStatus} accent={C.green}>
+      {loading ? (
+        <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading…</div>
+      ) : revenue ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontVariantNumeric: "tabular-nums" }}>
+              <span style={{ fontSize: 22, fontWeight: 700, color }}>{fmtMoney(revenue.total_cents)}</span>
+              <span style={{ fontSize: 11, color: C.muted }}> / {fmtMoney(REVENUE_GOAL)}</span>
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color, fontFamily: "'DM Mono', monospace" }}>{pct}%</div>
+          </div>
+          <div style={{ background: C.surface, borderRadius: 4, height: 8, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+            <div style={{
+              width: `${pct}%`, height: "100%",
+              background: `linear-gradient(90deg, ${color}80, ${color})`,
+              borderRadius: 4, transition: "width 0.6s ease",
+              boxShadow: `0 0 8px ${color}60`,
+            }} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 9, color: C.muted, fontFamily: "'DM Mono', monospace" }}>
+              {revenue.count} payment{revenue.count !== 1 ? "s" : ""} · {new Date().toLocaleString("default", { month: "long", year: "numeric" })}
+            </div>
+            <Btn small color={C.green} onClick={load}>REFRESH</Btn>
+          </div>
+        </div>
+      ) : (
+        <div style={{ color: C.muted, fontSize: 10 }}>Could not load revenue data.</div>
+      )}
+    </Panel>
+  );
+}
+
 // ─── Netlify Panel ────────────────────────────────────────────────────────────
 function NetlifyPanel({ onData }) {
   const [data, setData] = useState(null);
@@ -623,6 +682,79 @@ function NetlifyPanel({ onData }) {
         </>
       ) : (
         <div style={{ color: C.muted, fontSize: 10 }}>No deploy data found.</div>
+      )}
+    </Panel>
+  );
+}
+
+// ─── Analytics Panel ──────────────────────────────────────────────────────────
+function AnalyticsPanel() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const res = await callClaude(
+      `Use the netlify MCP to get analytics for site ID "${NETLIFY_ID}". Get page views and unique visitors for the last 7 days if available. Return JSON: {"pageviews": number, "visitors": number, "period": string, "top_pages": [{"path": string, "views": number}]}`,
+      [MCP_NETLIFY]
+    );
+    setData(tryJSON(getText(res)));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, []);
+
+  const panelStatus = loading ? "loading" : data ? "ok" : "idle";
+
+  return (
+    <Panel title="Analytics — 7 Days" status={panelStatus} accent={C.cyan}>
+      {loading ? (
+        <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading…</div>
+      ) : data ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {[["PAGE VIEWS", data.pageviews, C.cyan], ["VISITORS", data.visitors, C.purple]].map(([label, val, color]) => (
+              <div key={label} style={{
+                textAlign: "center", padding: "10px 6px",
+                background: `${color}10`, border: `1px solid ${color}25`, borderRadius: 5,
+              }}>
+                <div style={{
+                  fontSize: 24, fontWeight: 700, color,
+                  fontFamily: "'DM Mono', monospace", fontVariantNumeric: "tabular-nums",
+                  textShadow: `0 0 16px ${color}50`,
+                }}>{val?.toLocaleString() ?? "—"}</div>
+                <div style={{ fontSize: 8, color: C.muted, letterSpacing: "0.14em", marginTop: 2 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+          {data.period && (
+            <div style={{ fontSize: 9, color: C.muted, fontFamily: "'DM Mono', monospace" }}>Period: {data.period}</div>
+          )}
+          {data.top_pages?.length > 0 && (
+            <>
+              <SectionLabel color={C.cyan}>Top Pages</SectionLabel>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {data.top_pages.slice(0, 4).map((p, i) => (
+                  <div key={i} style={{
+                    display: "flex", justifyContent: "space-between",
+                    padding: "5px 8px", background: C.surface,
+                    border: `1px solid ${C.border}`, borderRadius: 4,
+                  }}>
+                    <span style={{ fontSize: 9, color: C.text, fontFamily: "'DM Mono', monospace" }}>{p.path}</span>
+                    <span style={{ fontSize: 9, color: C.cyan, fontFamily: "'DM Mono', monospace", fontVariantNumeric: "tabular-nums" }}>{p.views?.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Btn small color={C.cyan} onClick={load}>REFRESH</Btn>
+          </div>
+        </div>
+      ) : (
+        <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>
+          Analytics unavailable — may require Netlify Pro plan.
+        </div>
       )}
     </Panel>
   );
@@ -1009,6 +1141,77 @@ function OrionChatPanel() {
   );
 }
 
+// ─── GitHub Panel ─────────────────────────────────────────────────────────────
+function GitHubPanel() {
+  const [commits, setCommits] = useState(null);
+  const [prs, setPRs] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("commits");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [commitsRes, prsRes] = await Promise.all([
+      fetch(`https://api.github.com/repos/${GITHUB_REPO}/commits?per_page=6`).then(r => r.json()).catch(() => []),
+      fetch(`https://api.github.com/repos/${GITHUB_REPO}/pulls?state=open&per_page=10`).then(r => r.json()).catch(() => []),
+    ]);
+    setCommits(Array.isArray(commitsRes) ? commitsRes : []);
+    setPRs(Array.isArray(prsRes) ? prsRes : []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, []);
+
+  const panelStatus = loading ? "loading" : commits?.length ? "ok" : "err";
+
+  return (
+    <Panel title="GitHub" status={panelStatus} accent={C.text}>
+      <TabBar tabs={["commits", "prs"]} active={tab} onChange={setTab} color={C.textDim} />
+      {loading ? (
+        <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace", marginTop: 8 }}>Loading…</div>
+      ) : tab === "commits" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 8 }}>
+          {(commits || []).map((c, i) => (
+            <div key={i} style={{
+              padding: "6px 8px", background: C.surface,
+              border: `1px solid ${C.border}`, borderRadius: 5,
+            }}>
+              <div style={{ fontSize: 10, color: C.text, lineHeight: 1.4, marginBottom: 2 }}>
+                {c.commit?.message?.split("\n")[0] || "—"}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <span style={{ fontSize: 8, color: C.muted, fontFamily: "'DM Mono', monospace" }}>{c.sha?.slice(0, 7)}</span>
+                <span style={{ fontSize: 8, color: C.muted, fontFamily: "'DM Mono', monospace" }}>
+                  {c.commit?.author?.date ? timeAgo(new Date(c.commit.author.date).getTime() / 1000) : ""}
+                </span>
+              </div>
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 2 }}>
+            <Btn small color={C.muted} onClick={load}>REFRESH</Btn>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 8 }}>
+          {prs && prs.length > 0 ? prs.map((pr, i) => (
+            <CardRow key={i}>
+              <Tag color={C.green}>#{pr.number}</Tag>
+              <span style={{ fontSize: 10, color: C.text, flex: 1 }}>{pr.title}</span>
+              <span style={{ fontSize: 9, color: C.muted, fontFamily: "'DM Mono', monospace" }}>
+                {pr.created_at ? timeAgo(new Date(pr.created_at).getTime() / 1000) : ""}
+              </span>
+            </CardRow>
+          )) : (
+            <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>No open PRs.</div>
+          )}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 2 }}>
+            <Btn small color={C.muted} onClick={load}>REFRESH</Btn>
+          </div>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 // ─── Slack Panel ──────────────────────────────────────────────────────────────
 const SLACK_CHANNELS = [
   { id: "C0B123W9PMG", name: "all-okdf-ai-agency" },
@@ -1248,6 +1451,7 @@ export default function App() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <MakePanel />
+            <GitHubPanel />
             <SlackPanel />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1258,7 +1462,9 @@ export default function App() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <StripePanel onData={setStripeData} />
+            <RevenueGoalPanel />
             <NetlifyPanel onData={setNetlifyData} />
+            <AnalyticsPanel />
             <ContentQueuePanel />
           </div>
         </div>
