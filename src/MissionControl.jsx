@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, createContext, useContext } from "react";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const MCP_MAKE    = { type: "url", url: "https://mcp.make.com",                name: "make"    };
@@ -35,6 +35,11 @@ const C = {
   ghost:        "#1E2740",
   dim:          "#1A2030",
 };
+
+// ─── Auto-refresh ─────────────────────────────────────────────────────────────
+const REFRESH_INTERVAL = 10 * 60; // seconds
+const RefreshContext = createContext(0);
+const useRefreshKey = () => useContext(RefreshContext);
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 async function callClaude(prompt, mcpServers = []) {
@@ -236,6 +241,7 @@ function CardRow({ children, style }) {
 
 // ─── Make Panel ───────────────────────────────────────────────────────────────
 function MakePanel() {
+  const refreshKey = useRefreshKey();
   const [tab, setTab] = useState("scenarios");
   const [scenarioStates, setScenarioStates] = useState({});
   const [connectors, setConnectors] = useState(null);
@@ -280,7 +286,7 @@ function MakePanel() {
     setLoadingConn(false);
   };
 
-  useEffect(() => { SCENARIOS.forEach(s => fetchScenarioStatus(s.id)); }, []);
+  useEffect(() => { SCENARIOS.forEach(s => fetchScenarioStatus(s.id)); }, [fetchScenarioStatus, refreshKey]);
   useEffect(() => { if (tab === "connectors" && !connectors) fetchConnectors(); }, [tab]);
 
   const allLoaded = SCENARIOS.every(s => scenarioStates[s.id] && !scenarioStates[s.id].loading);
@@ -362,6 +368,7 @@ function MakePanel() {
 
 // ─── Orion Prime Memory Panel ─────────────────────────────────────────────────
 function OrionMemoryPanel({ onData }) {
+  const refreshKey = useRefreshKey();
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -377,7 +384,7 @@ function OrionMemoryPanel({ onData }) {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const statusColor = state?.status === "green" ? C.green : state?.status === "red" ? C.red : state?.status === "yellow" ? C.amber : C.muted;
   const panelStatus = loading ? "loading" : state?.status === "green" ? "ok" : state?.status === "red" ? "err" : "idle";
@@ -476,6 +483,7 @@ function OrionMemoryPanel({ onData }) {
 
 // ─── Stripe Panel ─────────────────────────────────────────────────────────────
 function StripePanel({ onData }) {
+  const refreshKey = useRefreshKey();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -490,7 +498,7 @@ function StripePanel({ onData }) {
       if (onData) onData(j);
       setLoading(false);
     })();
-  }, []);
+  }, [refreshKey]);
 
   const bal = data?.balance?.available?.[0];
   const payments = data?.payments || [];
@@ -554,6 +562,7 @@ function StripePanel({ onData }) {
 
 // ─── Revenue Goal Panel ───────────────────────────────────────────────────────
 function RevenueGoalPanel() {
+  const refreshKey = useRefreshKey();
   const [revenue, setRevenue] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -568,7 +577,7 @@ function RevenueGoalPanel() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const pct = revenue ? Math.min(100, Math.round((revenue.total_cents / REVENUE_GOAL) * 100)) : 0;
   const color = pct >= 100 ? C.green : pct >= 60 ? C.amber : C.red;
@@ -611,6 +620,7 @@ function RevenueGoalPanel() {
 
 // ─── Netlify Panel ────────────────────────────────────────────────────────────
 function NetlifyPanel({ onData }) {
+  const refreshKey = useRefreshKey();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [deploying, setDeploying] = useState(false);
@@ -640,7 +650,7 @@ function NetlifyPanel({ onData }) {
     setTimeout(load, 3000);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const deployState = data?.published_deploy?.state;
   const stateColor = deployState === "ready" ? C.green : deployState ? C.amber : C.muted;
@@ -690,6 +700,7 @@ function NetlifyPanel({ onData }) {
 
 // ─── Analytics Panel ──────────────────────────────────────────────────────────
 function AnalyticsPanel() {
+  const refreshKey = useRefreshKey();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -703,7 +714,7 @@ function AnalyticsPanel() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const panelStatus = loading ? "loading" : data ? "ok" : "idle";
 
@@ -832,6 +843,7 @@ Write a sharp 3-sentence Director's briefing. Lead with ops status, flag anythin
 
 // ─── Tasks Panel ─────────────────────────────────────────────────────────────
 function TasksPanel() {
+  const refreshKey = useRefreshKey();
   const [tasks, setTasks] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -846,7 +858,7 @@ function TasksPanel() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const panelStatus = loading ? "loading" : tasks?.overdue > 0 ? "err" : "ok";
 
@@ -902,6 +914,7 @@ function TasksPanel() {
 
 // ─── Content Queue Panel ──────────────────────────────────────────────────────
 function ContentQueuePanel() {
+  const refreshKey = useRefreshKey();
   const [items, setItems] = useState(null);
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(null);
@@ -928,7 +941,7 @@ function ContentQueuePanel() {
     fetchQueue();
   };
 
-  useEffect(() => { fetchQueue(); }, []);
+  useEffect(() => { fetchQueue(); }, [fetchQueue, refreshKey]);
 
   const platformColor = (p) => ({ X: C.text, WhatsApp: C.green, Slack: C.amber })[p] || C.cyan;
   const panelStatus = loading ? "loading" : items?.length > 0 ? "idle" : "ok";
@@ -966,6 +979,7 @@ function ContentQueuePanel() {
 
 // ─── Action Log Panel ─────────────────────────────────────────────────────────
 function ActionLogPanel() {
+  const refreshKey = useRefreshKey();
   const [entries, setEntries] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -981,7 +995,7 @@ function ActionLogPanel() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const typeColor = (t) => ({
     content_post: C.cyan,
@@ -1145,6 +1159,7 @@ function OrionChatPanel() {
 
 // ─── GitHub Panel ─────────────────────────────────────────────────────────────
 function GitHubPanel() {
+  const refreshKey = useRefreshKey();
   const [commits, setCommits] = useState(null);
   const [prs, setPRs] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1161,7 +1176,7 @@ function GitHubPanel() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const panelStatus = loading ? "loading" : commits?.length ? "ok" : "err";
 
@@ -1222,6 +1237,7 @@ const SLACK_CHANNELS = [
 ];
 
 function SlackPanel() {
+  const refreshKey = useRefreshKey();
   const [activeChannel, setActiveChannel] = useState(SLACK_CHANNELS[0]);
   const [messages, setMessages] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1258,7 +1274,7 @@ function SlackPanel() {
     loadMessages(activeChannel);
   };
 
-  useEffect(() => { loadMessages(activeChannel); }, [activeChannel, loadMessages]);
+  useEffect(() => { loadMessages(activeChannel); }, [activeChannel, loadMessages, refreshKey]);
 
   const panelStatus = loading ? "loading" : messages === null ? "err" : "ok";
 
@@ -1339,12 +1355,14 @@ function SlackPanel() {
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────────
-function Header() {
+function Header({ countdown }) {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+  const mm = String(Math.floor(countdown / 60)).padStart(2, "0");
+  const ss = String(countdown % 60).padStart(2, "0");
 
   return (
     <div style={{
@@ -1385,6 +1403,12 @@ function Header() {
         }}>
           {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).toUpperCase()}
         </div>
+        <div style={{
+          fontSize: 9, color: C.muted, fontFamily: "'DM Mono', monospace",
+          letterSpacing: "0.12em", marginTop: 4, opacity: 0.6,
+        }}>
+          REFRESH IN {mm}:{ss}
+        </div>
       </div>
     </div>
   );
@@ -1396,13 +1420,26 @@ export default function App() {
   const [stripeData, setStripeData] = useState(null);
   const [netlifyData, setNetlifyData] = useState(null);
   const [orionData, setOrionData] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
 
   useEffect(() => {
     const t = setTimeout(() => setMakeReady(true), 3000);
     return () => clearTimeout(t);
   }, []);
 
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) { setRefreshKey(k => k + 1); return REFRESH_INTERVAL; }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(tick);
+  }, []);
+
   return (
+    <RefreshContext.Provider value={refreshKey}>
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
@@ -1441,7 +1478,7 @@ export default function App() {
         minHeight: "100vh", padding: "24px 24px",
         fontFamily: "'DM Mono', monospace", color: C.text,
       }}>
-        <Header />
+        <Header countdown={countdown} />
         <Briefing
           makeReady={makeReady}
           stripeData={stripeData}
@@ -1472,5 +1509,6 @@ export default function App() {
         </div>
       </div>
     </>
+    </RefreshContext.Provider>
   );
 }
