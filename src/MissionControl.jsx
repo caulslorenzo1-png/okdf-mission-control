@@ -48,6 +48,7 @@ async function callClaude(prompt, mcpServers = []) {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(45000),
     });
     return await res.json();
   } catch(e) { return { _err: e.message }; }
@@ -837,7 +838,7 @@ function TasksPanel() {
   const load = useCallback(async () => {
     setLoading(true);
     const data = await callClaude(
-      `Use the notion MCP to query the "OKDF Task Command Center" database (https://www.notion.so/821826225d3448939073ee5918a03c7b). Count rows by Status field: "Pending" counts as todo, "In Progress" and "In Review" count as inProgress, "Done" counts as done, "Blocked" counts as overdue. Also find tasks where Due Date is in the past and Status is not Done — add those to overdue. Return JSON: {"total": number, "todo": number, "inProgress": number, "done": number, "overdue": number, "top": [{"title": string, "priority": string, "assignedTo": string}]}. Top should be up to 5 highest priority Pending or In Progress tasks ordered by Priority (P1 first) then Due Date.`,
+      `Use the notion MCP to query the "OKDF Task Command Center" database (https://www.notion.so/1114b22793b24c499fe2bded313f499e). Count rows by Status field: "Pending" counts as todo, "In Progress" and "In Review" count as inProgress, "Done" counts as done, "Blocked" counts as overdue. Also find tasks where Due Date is in the past and Status is not Done — add those to overdue. Return JSON: {"total": number, "todo": number, "inProgress": number, "done": number, "overdue": number, "top": [{"title": string, "priority": string, "assignedTo": string}]}. Top should be up to 5 highest priority Pending or In Progress tasks ordered by Priority (P1 first) then Due Date.`,
       [MCP_NOTION]
     );
     const j = tryJSON(getText(data));
@@ -908,7 +909,7 @@ function ContentQueuePanel() {
   const fetchQueue = useCallback(async () => {
     setLoading(true);
     const data = await callClaude(
-      `Use the notion MCP to query the Content Queue database (https://www.notion.so/e2bc3e61299a4e5d8f968a38e6c25ac5) for items where Status is "Draft" or "Scheduled". Return JSON array: [{"id": string, "title": string, "platform": string, "status": string, "scheduledFor": string|null}]. Max 8 items, ordered by ScheduledFor ascending.`,
+      `Use the notion MCP to query the Content Queue database (https://www.notion.so/775eca33571e41838dff27dfbfefb304) for items where Status is "Draft" or "Scheduled". Return JSON array: [{"id": string, "title": string, "platform": string, "status": string, "scheduledFor": string|null}]. Max 8 items, ordered by ScheduledFor ascending.`,
       [MCP_NOTION]
     );
     const text = getText(data);
@@ -971,7 +972,7 @@ function ActionLogPanel() {
   const load = useCallback(async () => {
     setLoading(true);
     const data = await callClaude(
-      `Use the notion MCP to query the "Orion Action Log" database. Find it by searching for a database with "Orion Action Log" in the title. Return the last 10 entries as JSON array: [{"title": string, "type": string, "result": string, "cycle": string, "notes": string}] ordered by Cycle descending.`,
+      `Use the notion MCP to query the "Orion Action Log" database (https://www.notion.so/073023c48c4a48c28599b619d78f3124). Return the last 10 entries as JSON array: [{"title": string, "type": string, "result": string, "cycle": string, "notes": string}] ordered by Cycle descending.`,
       [MCP_NOTION]
     );
     const text = getText(data);
@@ -1048,6 +1049,7 @@ async function callOrion(messages) {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60000),
     });
     return await res.json();
   } catch(e) { return { _err: e.message }; }
