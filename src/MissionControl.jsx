@@ -83,6 +83,11 @@ function tryJSON(s) {
   } catch { return null; }
 }
 
+function notify(title, body) {
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  new Notification(title, { body, icon: "/favicon.ico" });
+}
+
 function fmtMoney(cents, currency = "usd") {
   return new Intl.NumberFormat("en-US", {
     style: "currency", currency: (currency || "usd").toUpperCase(), minimumFractionDigits: 2
@@ -1138,10 +1143,18 @@ async function callOrion(messages) {
 }
 
 function OrionChatPanel() {
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("orion-chat") || "[]"); }
+    catch { return []; }
+  });
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const scrollRef = useRef(null);
+
+  useEffect(() => {
+    try { localStorage.setItem("orion-chat", JSON.stringify(history)); }
+    catch {}
+  }, [history]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -1218,7 +1231,10 @@ function OrionChatPanel() {
       </div>
       {history.length > 0 && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-          <Btn small color={C.muted} onClick={() => setHistory([])}>CLEAR</Btn>
+          <Btn small color={C.muted} onClick={() => {
+            setHistory([]);
+            try { localStorage.removeItem("orion-chat"); } catch {}
+          }}>CLEAR</Btn>
         </div>
       )}
     </Panel>
@@ -1425,7 +1441,7 @@ function SlackPanel() {
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────────
-function Header({ countdown }) {
+function Header({ countdown, notifPerm, onEnableNotifs }) {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -1476,20 +1492,31 @@ function Header({ countdown }) {
         }}>
           {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).toUpperCase()}
         </div>
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 5,
-          background: `${C.gold}0E`, border: `1px solid ${C.gold}25`,
-          borderRadius: 5, padding: "3px 9px",
-        }}>
-          <span style={{
-            width: 5, height: 5, borderRadius: "50%", background: C.gold,
-            boxShadow: `0 0 6px ${C.gold}`,
-            animation: "glow-pulse 2s ease-in-out infinite", display: "inline-block",
-          }} />
-          <span style={{
-            fontSize: 9, color: C.gold, fontFamily: "'DM Mono', monospace",
-            letterSpacing: "0.12em", fontVariantNumeric: "tabular-nums",
-          }}>REFRESH {mm}:{ss}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {typeof Notification !== "undefined" && notifPerm !== "granted" && notifPerm !== "denied" && (
+            <button onClick={onEnableNotifs} style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              background: `${C.amber}0E`, border: `1px solid ${C.amber}30`,
+              borderRadius: 5, padding: "3px 9px", cursor: "pointer",
+              fontSize: 9, color: C.amber, fontFamily: "'DM Mono', monospace",
+              letterSpacing: "0.12em",
+            }}>⊕ ENABLE ALERTS</button>
+          )}
+          <div style={{
+            display: "inline-flex", alignItems: "center", gap: 5,
+            background: `${C.gold}0E`, border: `1px solid ${C.gold}25`,
+            borderRadius: 5, padding: "3px 9px",
+          }}>
+            <span style={{
+              width: 5, height: 5, borderRadius: "50%", background: C.gold,
+              boxShadow: `0 0 6px ${C.gold}`,
+              animation: "glow-pulse 2s ease-in-out infinite", display: "inline-block",
+            }} />
+            <span style={{
+              fontSize: 9, color: C.gold, fontFamily: "'DM Mono', monospace",
+              letterSpacing: "0.12em", fontVariantNumeric: "tabular-nums",
+            }}>REFRESH {mm}:{ss}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -1504,6 +1531,44 @@ export default function App() {
   const [orionData, setOrionData] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
+  const [notifPerm, setNotifPerm] = useState(
+    typeof Notification !== "undefined" ? Notification.permission : "denied"
+  );
+
+  const prevOrionStatus = useRef(null);
+  const prevPaymentIds = useRef(new Set());
+
+  const enableNotifs = async () => {
+    if (typeof Notification === "undefined") return;
+    const perm = await Notification.requestPermission();
+    setNotifPerm(perm);
+  };
+
+  useEffect(() => {
+    if (!orionData?.status) return;
+    const prev = prevOrionStatus.current;
+    const curr = orionData.status;
+    if (prev !== null && prev !== curr && (curr === "red" || curr === "yellow")) {
+      notify(
+        `Orion Prime — ${curr.toUpperCase()}`,
+        orionData.ops_summary || orionData.last_decision || "Status changed."
+      );
+    }
+    prevOrionStatus.current = curr;
+  }, [orionData]);
+
+  useEffect(() => {
+    if (!stripeData?.payments?.length) return;
+    const known = prevPaymentIds.current;
+    const newPayments = stripeData.payments.filter(p => !known.has(p.id));
+    if (known.size > 0 && newPayments.length > 0) {
+      newPayments.forEach(p => notify(
+        `Payment received — ${fmtMoney(p.amount, p.currency)}`,
+        `Status: ${p.status}`
+      ));
+    }
+    stripeData.payments.forEach(p => known.add(p.id));
+  }, [stripeData]);
 
   useEffect(() => {
     const t = setTimeout(() => setMakeReady(true), 3000);
@@ -1574,7 +1639,7 @@ export default function App() {
         minHeight: "100vh", padding: "24px 24px",
         fontFamily: "'DM Mono', monospace", color: C.text,
       }}>
-        <Header countdown={countdown} />
+        <Header countdown={countdown} notifPerm={notifPerm} onEnableNotifs={enableNotifs} />
         <Briefing
           makeReady={makeReady}
           stripeData={stripeData}
