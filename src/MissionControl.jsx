@@ -1606,6 +1606,18 @@ export default function App() {
     return () => clearInterval(tick);
   }, []);
 
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      if (e.key === "r" && !e.ctrlKey && !e.metaKey) {
+        setRefreshKey(k => k + 1);
+        setCountdown(REFRESH_INTERVAL);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <RefreshContext.Provider value={refreshKey}>
     <>
