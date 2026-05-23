@@ -41,6 +41,17 @@ const REFRESH_INTERVAL = 10 * 60; // seconds
 const RefreshContext = createContext(0);
 const useRefreshKey = () => useContext(RefreshContext);
 
+function useStaggerLoad(load, refreshKey, initialDelay = 0) {
+  const isInitial = useRef(true);
+  useEffect(() => {
+    const delay = isInitial.current ? initialDelay : 0;
+    isInitial.current = false;
+    if (!delay) { load(); return; }
+    const t = setTimeout(load, delay);
+    return () => clearTimeout(t);
+  }, [load, refreshKey]);
+}
+
 // ─── API ──────────────────────────────────────────────────────────────────────
 async function callClaude(prompt, mcpServers = []) {
   try {
@@ -394,7 +405,7 @@ function OrionMemoryPanel({ onData }) {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load, refreshKey]);
+  useStaggerLoad(load, refreshKey, 0);
 
   const statusColor = state?.status === "green" ? C.green : state?.status === "red" ? C.red : state?.status === "yellow" ? C.amber : C.muted;
   const panelStatus = loading ? "loading" : state?.status === "green" ? "ok" : state?.status === "red" ? "err" : "idle";
@@ -497,8 +508,9 @@ function StripePanel({ onData }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const isInitialStripe = useRef(true);
   useEffect(() => {
-    (async () => {
+    const run = async () => {
       const res = await callClaude(
         `Use the stripe MCP to: 1) get account balance, 2) list last 5 payment intents. Return JSON: {"balance": {"available": [{"amount":number,"currency":string}]}, "payments": [{"id":string,"amount":number,"currency":string,"status":string,"created":number}]}`,
         [MCP_STRIPE]
@@ -507,7 +519,12 @@ function StripePanel({ onData }) {
       setData(j);
       if (onData) onData(j);
       setLoading(false);
-    })();
+    };
+    const delay = isInitialStripe.current ? 200 : 0;
+    isInitialStripe.current = false;
+    const t = delay ? setTimeout(run, delay) : null;
+    if (!delay) run();
+    return () => t && clearTimeout(t);
   }, [refreshKey]);
 
   const bal = data?.balance?.available?.[0];
@@ -587,7 +604,7 @@ function RevenueGoalPanel() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load, refreshKey]);
+  useStaggerLoad(load, refreshKey, 1000);
 
   const pct = revenue ? Math.min(100, Math.round((revenue.total_cents / REVENUE_GOAL) * 100)) : 0;
   const color = pct >= 100 ? C.green : pct >= 60 ? C.amber : C.red;
@@ -660,7 +677,7 @@ function NetlifyPanel({ onData }) {
     setTimeout(load, 3000);
   };
 
-  useEffect(() => { load(); }, [load, refreshKey]);
+  useStaggerLoad(load, refreshKey, 1400);
 
   const deployState = data?.published_deploy?.state;
   const stateColor = deployState === "ready" ? C.green : deployState ? C.amber : C.muted;
@@ -724,7 +741,7 @@ function AnalyticsPanel() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load, refreshKey]);
+  useStaggerLoad(load, refreshKey, 2200);
 
   const panelStatus = loading ? "loading" : data ? "ok" : "idle";
 
@@ -868,7 +885,7 @@ function TasksPanel() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load, refreshKey]);
+  useStaggerLoad(load, refreshKey, 800);
 
   const panelStatus = loading ? "loading" : tasks?.overdue > 0 ? "err" : "ok";
 
@@ -916,7 +933,10 @@ function TasksPanel() {
           </div>
         </div>
       ) : (
-        <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>No task data. Set up Tasks DB in Notion first.</div>
+        <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace", lineHeight: 1.8 }}>
+          No tasks found.<br />
+          <span style={{ color: C.textDim }}>Add rows to the OKDF Task Command Center in Notion with a Status and Priority to see them here.</span>
+        </div>
       )}
     </Panel>
   );
@@ -951,7 +971,7 @@ function ContentQueuePanel() {
     fetchQueue();
   };
 
-  useEffect(() => { fetchQueue(); }, [fetchQueue, refreshKey]);
+  useStaggerLoad(fetchQueue, refreshKey, 2800);
 
   const platformColor = (p) => ({ X: C.text, WhatsApp: C.green, Slack: C.amber })[p] || C.cyan;
   const panelStatus = loading ? "loading" : items?.length > 0 ? "idle" : "ok";
@@ -981,7 +1001,10 @@ function ContentQueuePanel() {
           </div>
         </div>
       ) : (
-        <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Queue empty — add items to Notion Content Queue.</div>
+        <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace", lineHeight: 1.8 }}>
+          Queue is empty.<br />
+          <span style={{ color: C.textDim }}>Add Draft or Scheduled items to the Content Queue in Notion — set Platform to X, WhatsApp, or Slack.</span>
+        </div>
       )}
     </Panel>
   );
@@ -1005,7 +1028,7 @@ function ActionLogPanel() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load, refreshKey]);
+  useStaggerLoad(load, refreshKey, 1600);
 
   const typeColor = (t) => ({
     content_post: C.cyan,
@@ -1051,7 +1074,8 @@ function ActionLogPanel() {
         </div>
       ) : (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace", lineHeight: 1.7 }}>
-          No actions logged yet.<br />Orion will populate this after first cycle.
+          No actions logged yet.<br />
+          <span style={{ color: C.textDim }}>Orion writes here after each 4-hour cycle. Trigger a run from the Make panel to start.</span>
         </div>
       )}
     </Panel>
@@ -1186,7 +1210,7 @@ function GitHubPanel() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load, refreshKey]);
+  useStaggerLoad(load, refreshKey, 300);
 
   const panelStatus = loading ? "loading" : commits?.length ? "ok" : "err";
 
@@ -1331,7 +1355,9 @@ function SlackPanel() {
           </div>
         )) : (
           <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>
-            {messages === null ? "Failed to load — check Slack MCP connection." : "No messages yet."}
+            {messages === null
+              ? "Failed to load — check Slack is connected in claude.ai Settings → Integrations."
+              : "No messages in this channel yet."}
           </div>
         )}
       </div>
