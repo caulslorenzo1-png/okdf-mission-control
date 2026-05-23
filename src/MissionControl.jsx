@@ -199,7 +199,19 @@ function TabBar({ tabs, active, onChange, color }) {
 }
 
 // ─── Panel Shell ──────────────────────────────────────────────────────────────
-function Panel({ title, status, children, accent, minHeight, onRetry }) {
+function Panel({ title, status, children, accent, minHeight, onRetry, id }) {
+  const storageKey = id ? `panel-collapsed-${id}` : null;
+  const [collapsed, setCollapsed] = useState(() => {
+    if (!storageKey) return false;
+    try { return localStorage.getItem(storageKey) === "true"; } catch { return false; }
+  });
+
+  const toggle = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    if (storageKey) { try { localStorage.setItem(storageKey, String(next)); } catch {} }
+  };
+
   const statusColor = status === "ok" ? C.green : status === "err" ? C.red : status === "loading" ? C.amber : C.muted;
   const statusLabel = { ok: "OK", err: "ERR", idle: "IDLE" }[status];
   const ac = accent || C.gold;
@@ -211,7 +223,7 @@ function Panel({ title, status, children, accent, minHeight, onRetry }) {
       borderRadius: 12,
       padding: "16px 18px",
       display: "flex", flexDirection: "column", gap: 0,
-      minHeight: minHeight || "auto",
+      minHeight: collapsed ? "auto" : (minHeight || "auto"),
       position: "relative", overflow: "hidden",
       boxShadow: `0 0 0 1px ${ac}0A inset, 0 1px 0 0 ${ac}30 inset, 0 8px 32px #00000080, 0 0 48px ${ac}06`,
     }}>
@@ -220,19 +232,22 @@ function Panel({ title, status, children, accent, minHeight, onRetry }) {
         background: `linear-gradient(180deg, ${ac}0C 0%, transparent 100%)`,
         pointerEvents: "none", borderRadius: "12px 12px 0 0",
       }} />
-      <div style={{
-        display: "flex", alignItems: "center", gap: 9,
-        paddingBottom: 12, marginBottom: 14,
-        borderBottom: `1px solid ${C.border}`,
-        position: "relative",
-      }}>
+      <div
+        onClick={toggle}
+        style={{
+          display: "flex", alignItems: "center", gap: 9,
+          paddingBottom: collapsed ? 0 : 12, marginBottom: collapsed ? 0 : 14,
+          borderBottom: collapsed ? "none" : `1px solid ${C.border}`,
+          position: "relative", cursor: "pointer", userSelect: "none",
+        }}
+      >
         {status === "loading" ? <SpinDot /> : <Pulse color={statusColor} />}
         <span style={{
           fontSize: 10, fontFamily: "'DM Mono', monospace", fontWeight: 700,
           color: C.textDim, letterSpacing: "0.2em", textTransform: "uppercase", flex: 1,
         }}>{title}</span>
         {status === "err" && onRetry ? (
-          <Btn small color={C.red} onClick={onRetry}>RETRY</Btn>
+          <Btn small color={C.red} onClick={e => { e.stopPropagation(); onRetry(); }}>RETRY</Btn>
         ) : statusLabel ? (
           <span style={{
             fontSize: 8, color: statusColor,
@@ -243,8 +258,14 @@ function Panel({ title, status, children, accent, minHeight, onRetry }) {
             boxShadow: `0 0 10px ${statusColor}18`,
           }}>{statusLabel}</span>
         ) : null}
+        <span style={{
+          fontSize: 11, color: C.muted, flexShrink: 0, marginLeft: 4,
+          display: "inline-block", lineHeight: 1,
+          transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)",
+          transition: "transform 0.18s ease",
+        }}>▾</span>
       </div>
-      <div style={{ position: "relative" }}>{children}</div>
+      {!collapsed && <div style={{ position: "relative" }}>{children}</div>}
     </div>
   );
 }
@@ -322,7 +343,7 @@ function MakePanel() {
   const panelStatus = !allLoaded ? "loading" : anyError ? "err" : "ok";
 
   return (
-    <Panel title="Make.com — Automation" status={panelStatus} accent={C.gold} minHeight={220}>
+    <Panel title="Make.com — Automation" status={panelStatus} accent={C.gold} minHeight={220} id="make">
       <TabBar tabs={["scenarios", "connectors"]} active={tab} onChange={setTab} color={C.gold} />
 
       {tab === "scenarios" && (
@@ -418,7 +439,7 @@ function OrionMemoryPanel({ onData }) {
   const panelStatus = loading ? "loading" : state?.status === "green" ? "ok" : state?.status === "red" ? "err" : "idle";
 
   return (
-    <Panel title="Orion Prime — Last State" status={panelStatus} accent={C.cyan} onRetry={load}>
+    <Panel title="Orion Prime — Last State" status={panelStatus} accent={C.cyan} onRetry={load} id="orion-memory">
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Reading memory…</div>
       ) : state ? (
@@ -541,7 +562,7 @@ function StripePanel({ onData }) {
   const panelStatus = loading ? "loading" : data ? "ok" : "err";
 
   return (
-    <Panel title="Stripe — Revenue" status={panelStatus} accent={C.green} onRetry={run}>
+    <Panel title="Stripe — Revenue" status={panelStatus} accent={C.green} onRetry={run} id="stripe">
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading…</div>
       ) : (
@@ -620,7 +641,7 @@ function RevenueGoalPanel() {
   const panelStatus = loading ? "loading" : revenue ? (pct >= 100 ? "ok" : "idle") : "err";
 
   return (
-    <Panel title="Monthly Revenue Goal" status={panelStatus} accent={C.green} onRetry={load}>
+    <Panel title="Monthly Revenue Goal" status={panelStatus} accent={C.green} onRetry={load} id="revenue-goal">
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading…</div>
       ) : revenue ? (
@@ -693,7 +714,7 @@ function NetlifyPanel({ onData }) {
   const panelStatus = loading ? "loading" : deployState === "ready" ? "ok" : deployState ? "err" : "idle";
 
   return (
-    <Panel title="Netlify — Sales Page" status={panelStatus} accent={C.purple} onRetry={load}>
+    <Panel title="Netlify — Sales Page" status={panelStatus} accent={C.purple} onRetry={load} id="netlify">
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading…</div>
       ) : data ? (
@@ -755,7 +776,7 @@ function AnalyticsPanel() {
   const panelStatus = loading ? "loading" : data ? "ok" : "idle";
 
   return (
-    <Panel title="Analytics — 7 Days" status={panelStatus} accent={C.cyan} onRetry={load}>
+    <Panel title="Analytics — 7 Days" status={panelStatus} accent={C.cyan} onRetry={load} id="analytics">
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading…</div>
       ) : data ? (
@@ -899,7 +920,7 @@ function TasksPanel() {
   const panelStatus = loading ? "loading" : tasks?.overdue > 0 ? "err" : "ok";
 
   return (
-    <Panel title="Tasks — Notion" status={panelStatus} accent={C.amber} minHeight={180} onRetry={load}>
+    <Panel title="Tasks — Notion" status={panelStatus} accent={C.amber} minHeight={180} onRetry={load} id="tasks">
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading tasks…</div>
       ) : tasks ? (
@@ -1008,7 +1029,7 @@ function ContentQueuePanel() {
   const panelStatus = loading ? "loading" : items?.length > 0 ? "idle" : "ok";
 
   return (
-    <Panel title="Content Queue" status={panelStatus} accent={C.cyan} minHeight={180} onRetry={fetchQueue}>
+    <Panel title="Content Queue" status={panelStatus} accent={C.cyan} minHeight={180} onRetry={fetchQueue} id="content-queue">
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading queue…</div>
       ) : items && items.length > 0 ? (
@@ -1083,7 +1104,7 @@ function ActionLogPanel() {
   const panelStatus = loading ? "loading" : entries?.some(e => e.result === "failed") ? "err" : "ok";
 
   return (
-    <Panel title="Orion Action Log" status={panelStatus} accent={C.purple} minHeight={180} onRetry={load}>
+    <Panel title="Orion Action Log" status={panelStatus} accent={C.purple} minHeight={180} onRetry={load} id="action-log">
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading log…</div>
       ) : entries && entries.length > 0 ? (
@@ -1174,7 +1195,7 @@ function OrionChatPanel() {
   };
 
   return (
-    <Panel title="Orion — Direct Chat" status={thinking ? "loading" : "ok"} accent={C.cyan}>
+    <Panel title="Orion — Direct Chat" status={thinking ? "loading" : "ok"} accent={C.cyan} id="orion-chat">
       <div ref={scrollRef} style={{
         display: "flex", flexDirection: "column", gap: 6,
         maxHeight: 240, overflowY: "auto", marginBottom: 10, minHeight: 60,
@@ -1265,7 +1286,7 @@ function GitHubPanel() {
   const panelStatus = loading ? "loading" : commits?.length ? "ok" : "err";
 
   return (
-    <Panel title="GitHub" status={panelStatus} accent={C.text} onRetry={load}>
+    <Panel title="GitHub" status={panelStatus} accent={C.text} onRetry={load} id="github">
       <TabBar tabs={["commits", "prs"]} active={tab} onChange={setTab} color={C.textDim} />
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace", marginTop: 8 }}>Loading…</div>
@@ -1363,7 +1384,7 @@ function SlackPanel() {
   const panelStatus = loading ? "loading" : messages === null ? "err" : "ok";
 
   return (
-    <Panel title="Slack" status={panelStatus} accent={C.purple}>
+    <Panel title="Slack" status={panelStatus} accent={C.purple} id="slack">
       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 10, flexWrap: "wrap" }}>
         {SLACK_CHANNELS.map(ch => (
           <button key={ch.id} onClick={() => setActiveChannel(ch)} style={{
