@@ -194,7 +194,7 @@ function TabBar({ tabs, active, onChange, color }) {
 }
 
 // ─── Panel Shell ──────────────────────────────────────────────────────────────
-function Panel({ title, status, children, accent, minHeight }) {
+function Panel({ title, status, children, accent, minHeight, onRetry }) {
   const statusColor = status === "ok" ? C.green : status === "err" ? C.red : status === "loading" ? C.amber : C.muted;
   const statusLabel = { ok: "OK", err: "ERR", idle: "IDLE" }[status];
   const ac = accent || C.gold;
@@ -226,7 +226,9 @@ function Panel({ title, status, children, accent, minHeight }) {
           fontSize: 10, fontFamily: "'DM Mono', monospace", fontWeight: 700,
           color: C.textDim, letterSpacing: "0.2em", textTransform: "uppercase", flex: 1,
         }}>{title}</span>
-        {statusLabel && (
+        {status === "err" && onRetry ? (
+          <Btn small color={C.red} onClick={onRetry}>RETRY</Btn>
+        ) : statusLabel ? (
           <span style={{
             fontSize: 8, color: statusColor,
             background: `${statusColor}12`,
@@ -235,7 +237,7 @@ function Panel({ title, status, children, accent, minHeight }) {
             fontFamily: "'DM Mono', monospace", letterSpacing: "0.12em",
             boxShadow: `0 0 10px ${statusColor}18`,
           }}>{statusLabel}</span>
-        )}
+        ) : null}
       </div>
       <div style={{ position: "relative" }}>{children}</div>
     </div>
@@ -411,7 +413,7 @@ function OrionMemoryPanel({ onData }) {
   const panelStatus = loading ? "loading" : state?.status === "green" ? "ok" : state?.status === "red" ? "err" : "idle";
 
   return (
-    <Panel title="Orion Prime — Last State" status={panelStatus} accent={C.cyan}>
+    <Panel title="Orion Prime — Last State" status={panelStatus} accent={C.cyan} onRetry={load}>
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Reading memory…</div>
       ) : state ? (
@@ -509,30 +511,32 @@ function StripePanel({ onData }) {
   const [loading, setLoading] = useState(true);
 
   const isInitialStripe = useRef(true);
+  const run = useCallback(async () => {
+    setLoading(true);
+    const res = await callClaude(
+      `Use the stripe MCP to: 1) get account balance, 2) list last 5 payment intents. Return JSON: {"balance": {"available": [{"amount":number,"currency":string}]}, "payments": [{"id":string,"amount":number,"currency":string,"status":string,"created":number}]}`,
+      [MCP_STRIPE]
+    );
+    const j = tryJSON(getText(res));
+    setData(j);
+    if (onData) onData(j);
+    setLoading(false);
+  }, [onData]);
+
   useEffect(() => {
-    const run = async () => {
-      const res = await callClaude(
-        `Use the stripe MCP to: 1) get account balance, 2) list last 5 payment intents. Return JSON: {"balance": {"available": [{"amount":number,"currency":string}]}, "payments": [{"id":string,"amount":number,"currency":string,"status":string,"created":number}]}`,
-        [MCP_STRIPE]
-      );
-      const j = tryJSON(getText(res));
-      setData(j);
-      if (onData) onData(j);
-      setLoading(false);
-    };
     const delay = isInitialStripe.current ? 200 : 0;
     isInitialStripe.current = false;
     const t = delay ? setTimeout(run, delay) : null;
     if (!delay) run();
     return () => t && clearTimeout(t);
-  }, [refreshKey]);
+  }, [run, refreshKey]);
 
   const bal = data?.balance?.available?.[0];
   const payments = data?.payments || [];
   const panelStatus = loading ? "loading" : data ? "ok" : "err";
 
   return (
-    <Panel title="Stripe — Revenue" status={panelStatus} accent={C.green}>
+    <Panel title="Stripe — Revenue" status={panelStatus} accent={C.green} onRetry={run}>
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading…</div>
       ) : (
@@ -611,7 +615,7 @@ function RevenueGoalPanel() {
   const panelStatus = loading ? "loading" : revenue ? (pct >= 100 ? "ok" : "idle") : "err";
 
   return (
-    <Panel title="Monthly Revenue Goal" status={panelStatus} accent={C.green}>
+    <Panel title="Monthly Revenue Goal" status={panelStatus} accent={C.green} onRetry={load}>
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading…</div>
       ) : revenue ? (
@@ -684,7 +688,7 @@ function NetlifyPanel({ onData }) {
   const panelStatus = loading ? "loading" : deployState === "ready" ? "ok" : deployState ? "err" : "idle";
 
   return (
-    <Panel title="Netlify — Sales Page" status={panelStatus} accent={C.purple}>
+    <Panel title="Netlify — Sales Page" status={panelStatus} accent={C.purple} onRetry={load}>
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading…</div>
       ) : data ? (
@@ -746,7 +750,7 @@ function AnalyticsPanel() {
   const panelStatus = loading ? "loading" : data ? "ok" : "idle";
 
   return (
-    <Panel title="Analytics — 7 Days" status={panelStatus} accent={C.cyan}>
+    <Panel title="Analytics — 7 Days" status={panelStatus} accent={C.cyan} onRetry={load}>
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading…</div>
       ) : data ? (
@@ -890,7 +894,7 @@ function TasksPanel() {
   const panelStatus = loading ? "loading" : tasks?.overdue > 0 ? "err" : "ok";
 
   return (
-    <Panel title="Tasks — Notion" status={panelStatus} accent={C.amber} minHeight={180}>
+    <Panel title="Tasks — Notion" status={panelStatus} accent={C.amber} minHeight={180} onRetry={load}>
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading tasks…</div>
       ) : tasks ? (
@@ -948,6 +952,7 @@ function ContentQueuePanel() {
   const [items, setItems] = useState(null);
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(null);
+  const [postResult, setPostResult] = useState({});
 
   const fetchQueue = useCallback(async () => {
     setLoading(true);
@@ -963,12 +968,33 @@ function ContentQueuePanel() {
 
   const postNow = async (item) => {
     setPosting(item.id);
-    await callClaude(
-      `Use the notion MCP to get the full Draft content for the Content Queue item with id "${item.id}". Then post it to ${item.platform} using the appropriate skill (xurl for X/Twitter, wacli for WhatsApp, slack for Slack). Then update the Notion record: set Status to 'Posted' and PostedAt to now.`,
-      [MCP_NOTION]
-    );
+    setPostResult(p => ({ ...p, [item.id]: null }));
+
+    let result;
+    if (item.platform === "Slack") {
+      const res = await callClaude(
+        `Step 1: Use the notion MCP to read page ID "${item.id}" and extract its full body text. Step 2: Use the slack MCP to post that text to channel C0B123W9PMG (#all-okdf-ai-agency). Step 3: Use the notion MCP to update page "${item.id}": set the Status property to "Posted". Confirm all steps briefly.`,
+        [MCP_NOTION, MCP_SLACK]
+      );
+      result = getText(res).slice(0, 180) || "Posted to Slack.";
+    } else {
+      // X / WhatsApp — fetch content and copy to clipboard
+      const res = await callClaude(
+        `Use the notion MCP to read page ID "${item.id}" and return only its main body text as plain text, nothing else.`,
+        [MCP_NOTION]
+      );
+      const content = getText(res);
+      try {
+        await navigator.clipboard.writeText(content);
+        result = `Content copied — paste into ${item.platform} to publish.`;
+      } catch {
+        result = content.slice(0, 140) || "Could not get content.";
+      }
+    }
+
+    setPostResult(p => ({ ...p, [item.id]: result }));
     setPosting(null);
-    fetchQueue();
+    setTimeout(fetchQueue, 2500);
   };
 
   useStaggerLoad(fetchQueue, refreshKey, 2800);
@@ -977,24 +1003,32 @@ function ContentQueuePanel() {
   const panelStatus = loading ? "loading" : items?.length > 0 ? "idle" : "ok";
 
   return (
-    <Panel title="Content Queue" status={panelStatus} accent={C.cyan} minHeight={180}>
+    <Panel title="Content Queue" status={panelStatus} accent={C.cyan} minHeight={180} onRetry={fetchQueue}>
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading queue…</div>
       ) : items && items.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {items.map((item) => (
-            <CardRow key={item.id}>
-              <Tag color={platformColor(item.platform)}>{item.platform}</Tag>
-              <span style={{ fontSize: 10, color: C.text, flex: 1, lineHeight: 1.4 }}>{item.title}</span>
-              {item.scheduledFor && (
-                <span style={{ fontSize: 9, color: C.muted, fontFamily: "'DM Mono', monospace" }}>
-                  {new Date(item.scheduledFor).toLocaleDateString()}
-                </span>
+            <div key={item.id} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <CardRow>
+                <Tag color={platformColor(item.platform)}>{item.platform}</Tag>
+                <span style={{ fontSize: 10, color: C.text, flex: 1, lineHeight: 1.4 }}>{item.title}</span>
+                {item.scheduledFor && (
+                  <span style={{ fontSize: 9, color: C.muted, fontFamily: "'DM Mono', monospace" }}>
+                    {new Date(item.scheduledFor).toLocaleDateString()}
+                  </span>
+                )}
+                <Btn small color={C.cyan} disabled={posting === item.id} onClick={() => postNow(item)}>
+                  {posting === item.id ? "…" : "POST"}
+                </Btn>
+              </CardRow>
+              {postResult[item.id] && (
+                <div style={{
+                  fontSize: 9, color: C.cyan, fontFamily: "'DM Mono', monospace",
+                  lineHeight: 1.5, paddingLeft: 6, paddingBottom: 2,
+                }}>{postResult[item.id]}</div>
               )}
-              <Btn small color={C.cyan} disabled={posting === item.id} onClick={() => postNow(item)}>
-                {posting === item.id ? "…" : "POST"}
-              </Btn>
-            </CardRow>
+            </div>
           ))}
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
             <Btn small color={C.muted} onClick={fetchQueue}>REFRESH</Btn>
@@ -1044,7 +1078,7 @@ function ActionLogPanel() {
   const panelStatus = loading ? "loading" : entries?.some(e => e.result === "failed") ? "err" : "ok";
 
   return (
-    <Panel title="Orion Action Log" status={panelStatus} accent={C.purple} minHeight={180}>
+    <Panel title="Orion Action Log" status={panelStatus} accent={C.purple} minHeight={180} onRetry={load}>
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace" }}>Loading log…</div>
       ) : entries && entries.length > 0 ? (
@@ -1215,7 +1249,7 @@ function GitHubPanel() {
   const panelStatus = loading ? "loading" : commits?.length ? "ok" : "err";
 
   return (
-    <Panel title="GitHub" status={panelStatus} accent={C.text}>
+    <Panel title="GitHub" status={panelStatus} accent={C.text} onRetry={load}>
       <TabBar tabs={["commits", "prs"]} active={tab} onChange={setTab} color={C.textDim} />
       {loading ? (
         <div style={{ color: C.muted, fontSize: 10, fontFamily: "'DM Mono', monospace", marginTop: 8 }}>Loading…</div>
