@@ -80,6 +80,7 @@ async function callClaude(prompt, mcpServers = []) {
     if (mcpServers.length) body.mcp_servers = mcpServers;
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST", headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(45000),
     });
@@ -727,8 +728,19 @@ function NetlifyPanel({ onData }) {
   useStaggerLoad(load, refreshKey, 1400);
 
   const deployState = data?.published_deploy?.state;
-  const stateColor = deployState === "ready" ? C.green : deployState ? C.amber : C.muted;
-  const panelStatus = loading ? "loading" : deployState === "ready" ? "ok" : deployState ? "err" : "idle";
+  const FAIL_STATES  = ["error", "failed"];
+  const BUILD_STATES = ["building", "processing", "enqueued", "new"];
+  const stateColor  = deployState === "ready"              ? C.green
+                    : FAIL_STATES.includes(deployState)    ? C.red
+                    : BUILD_STATES.includes(deployState)   ? C.amber
+                    : deployState                          ? C.amber
+                    : C.muted;
+  const panelStatus = loading                              ? "loading"
+                    : deployState === "ready"              ? "ok"
+                    : FAIL_STATES.includes(deployState)    ? "err"
+                    : BUILD_STATES.includes(deployState)   ? "loading"
+                    : deployState                          ? "err"
+                    : "idle";
 
   return (
     <Panel title="Netlify — Sales Page" status={panelStatus} accent={C.purple} onRetry={load} id="netlify">
@@ -1173,6 +1185,7 @@ async function callOrion(messages) {
     };
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST", headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(60000),
     });
