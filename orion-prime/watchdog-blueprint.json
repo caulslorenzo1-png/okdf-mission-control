@@ -1,0 +1,104 @@
+{
+  "name": "OKDF — Orion Prime Watchdog",
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "designer": { "orphans": [] },
+    "scenario": {
+      "dlq": false,
+      "dataloss": false,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "roundtrips": 1,
+      "sequential": false,
+      "confidential": false,
+      "freshVariables": false,
+      "autoCommitTriggerLast": true
+    }
+  },
+  "scheduling": { "type": "indefinitely", "interval": 14400 },
+  "interface": { "input": [], "output": [] },
+  "flow": [
+    {
+      "id": 1,
+      "module": "datastore:GetRecord",
+      "version": 1,
+      "parameters": { "datastore": 99050 },
+      "mapper": { "key": "orion_state", "returnWrapped": false },
+      "metadata": {
+        "designer": { "x": 0, "y": 0 },
+        "restore": { "parameters": { "datastore": { "label": "OKDF Orion Prime Memory" } } },
+        "interface": [
+          { "name": "status",               "type": "text",   "label": "System Status" },
+          { "name": "run_count",            "type": "number", "label": "Total Runs" },
+          { "name": "last_run",             "type": "date",   "label": "Last Run Timestamp" },
+          { "name": "ops_summary",          "type": "text",   "label": "Last Ops Assessment" },
+          { "name": "active_flags",         "type": "text",   "label": "Active Issues Flagged" },
+          { "name": "agent_tasks",          "type": "text",   "label": "Delegated Agent Tasks" },
+          { "name": "last_decision",        "type": "text",   "label": "Last Decision Output" },
+          { "name": "escalations_pending",  "type": "number", "label": "Escalations Pending" },
+          { "name": "actions_this_cycle",   "type": "text",   "label": "Actions This Cycle" }
+        ],
+        "parameters": [{ "name": "datastore", "type": "datastore", "label": "Data store", "required": true }]
+      }
+    },
+    {
+      "id": 2,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": { "handleErrors": true, "useNewZLibDecompression": true },
+      "mapper": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "method": "post",
+        "bodyType": "raw",
+        "contentType": "application/json",
+        "parseResponse": true,
+        "headers": [
+          { "name": "x-api-key",        "value": "REPLACE_WITH_ANTHROPIC_API_KEY" },
+          { "name": "anthropic-version", "value": "2023-06-01" },
+          { "name": "content-type",      "value": "application/json" },
+          { "name": "anthropic-beta",    "value": "mcp-client-1.4" }
+        ],
+        "data": "{\"model\":\"claude-sonnet-4-6\",\"max_tokens\":1000,\"system\":\"You are the Orion Prime Watchdog for OKDF. You run every 4 hours, offset from the CEO Runner. You are read-only -- you do NOT modify any data. Your only job is to watch for unresolved issues and alert Lorenzo via Slack when needed.\\n\\nEVERY CYCLE - RUN IN ORDER:\\n\\n1. Review the orion_state provided. Check: is status yellow or red?\\n   - If GREEN and escalations_pending is 0: do nothing. Output: {\\\"watchdog\\\": \\\"clear\\\", \\\"alerts_sent\\\": 0, \\\"status_observed\\\": \\\"green\\\"}\\n   - If YELLOW or RED: check escalations_pending and hours since last_run.\\n     - If escalations_pending > 0 and last_run was more than 8 hours ago: send Slack reminder: \\\"ORION WATCHDOG -- Status still [yellow/red] after 8h. Pending escalation unresolved. Orion needs Lorenzo's input.\\\"\\n     - If escalations_pending = 0 but status is red: something slipped through. Send Slack: \\\"ORION WATCHDOG -- Red status with no escalation logged. Manual check needed.\\\"\\n     - If escalations_pending > 0 and last_run was less than 8 hours ago: do nothing, CEO Runner already handled it.\\n\\n2. Use the Stripe MCP to check if any payment intent failed in the last 2 hours. If yes and it is not mentioned in actions_this_cycle: send Slack alert about the failed payment.\\n\\n3. Use the Netlify MCP to check deploy state for site d6da9efd-1edf-49ed-b46f-c039a43c0bf2. If not ready: send Slack alert immediately.\\n\\nRULES\\n- Maximum 1 Slack message per cycle total.\\n- Never duplicate an alert the CEO Runner already sent in the same cycle -- check actions_this_cycle before alerting.\\n- Terse, direct Slack messages only. No fluff.\\n- You are read-only. Never write to Notion, Stripe, Netlify, or Make data stores.\\n\\nOUTPUT FORMAT\\nRespond ONLY in valid JSON, no markdown, no code fences:\\n{\\\"watchdog\\\": \\\"clear|alerted\\\", \\\"alerts_sent\\\": 0, \\\"status_observed\\\": \\\"green|yellow|red\\\"}\",\"mcp_servers\":[{\"type\":\"url\",\"url\":\"https://mcp.make.com\",\"name\":\"make\",\"authorization_token\":\"REPLACE_WITH_MAKE_API_TOKEN\"},{\"type\":\"url\",\"url\":\"https://mcp.stripe.com\",\"name\":\"stripe\",\"authorization_token\":\"REPLACE_WITH_STRIPE_TOKEN\"},{\"type\":\"url\",\"url\":\"https://netlify-mcp.netlify.app/mcp\",\"name\":\"netlify\",\"authorization_token\":\"REPLACE_WITH_NETLIFY_TOKEN\"},{\"type\":\"url\",\"url\":\"https://mcp.slack.com/mcp\",\"name\":\"slack\",\"authorization_token\":\"REPLACE_WITH_SLACK_TOKEN\"}],\"messages\":[{\"role\":\"user\",\"content\":\"Current time: {{now}}\\nCurrent orion_state:\\n  status: {{ifempty(1.status, 'unknown')}}\\n  run_count: {{ifempty(1.run_count, 0)}}\\n  last_run: {{ifempty(1.last_run, 'Never')}}\\n  escalations_pending: {{ifempty(1.escalations_pending, 0)}}\\n  ops_summary: {{ifempty(1.ops_summary, 'No summary.')}}\\n  active_flags: {{ifempty(1.active_flags, 'none')}}\\n  actions_this_cycle: {{ifempty(1.actions_this_cycle, 'none')}}\\n\\nRun your watchdog cycle now. Check Stripe and Netlify live. Send Slack only if needed. Respond in valid JSON only.\"}]}"
+      },
+      "onerror": [
+        {
+          "id": 10,
+          "module": "http:ActionSendData",
+          "version": 3,
+          "parameters": { "handleErrors": false, "useNewZLibDecompression": true },
+          "mapper": {
+            "url": "https://api.anthropic.com/v1/messages",
+            "method": "post",
+            "bodyType": "raw",
+            "contentType": "application/json",
+            "parseResponse": false,
+            "headers": [
+              { "name": "x-api-key",        "value": "REPLACE_WITH_ANTHROPIC_API_KEY" },
+              { "name": "anthropic-version", "value": "2023-06-01" },
+              { "name": "content-type",      "value": "application/json" }
+            ],
+            "data": "{\"model\":\"claude-sonnet-4-6\",\"max_tokens\":200,\"mcp_servers\":[{\"type\":\"url\",\"url\":\"https://mcp.slack.com/mcp\",\"name\":\"slack\",\"authorization_token\":\"REPLACE_WITH_SLACK_TOKEN\"}],\"messages\":[{\"role\":\"user\",\"content\":\"Post this message to Slack channel #orion-ops: ORION WATCHDOG FAILED -- Could not complete watchdog cycle at {{now}}. Check Make.com scenario 5043726 and API key. Manual review required.\"}]}"
+          },
+          "metadata": { "designer": { "x": 300, "y": 200 } }
+        }
+      ],
+      "metadata": { "designer": { "x": 300, "y": 0 } }
+    },
+    {
+      "id": 3,
+      "module": "json:ParseJSON",
+      "version": 1,
+      "parameters": {},
+      "mapper": { "json": "{{2.data.content[1].text}}" },
+      "metadata": {
+        "designer": { "x": 600, "y": 0 },
+        "interface": [
+          { "name": "watchdog",         "type": "text",   "label": "Watchdog Result" },
+          { "name": "alerts_sent",      "type": "number", "label": "Alerts Sent" },
+          { "name": "status_observed",  "type": "text",   "label": "Status Observed" }
+        ]
+      }
+    }
+  ]
+}

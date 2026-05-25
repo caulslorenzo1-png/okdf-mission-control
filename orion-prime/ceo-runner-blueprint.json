@@ -1,0 +1,153 @@
+{
+  "name": "OKDF — Orion Prime CEO Runner",
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "designer": { "orphans": [] },
+    "scenario": {
+      "dlq": false,
+      "dataloss": false,
+      "maxErrors": 10,
+      "autoCommit": true,
+      "roundtrips": 1,
+      "sequential": false,
+      "confidential": false,
+      "freshVariables": false,
+      "autoCommitTriggerLast": true
+    }
+  },
+  "scheduling": {
+    "type": "indefinitely",
+    "interval": 14400
+  },
+  "interface": { "input": [], "output": [] },
+  "flow": [
+    {
+      "id": 1,
+      "module": "datastore:GetRecord",
+      "version": 1,
+      "parameters": { "datastore": 99050 },
+      "mapper": { "key": "orion_state", "returnWrapped": false },
+      "metadata": {
+        "designer": { "x": 0, "y": 0 },
+        "restore": {
+          "parameters": { "datastore": { "label": "OKDF Orion Prime Memory" } }
+        },
+        "interface": [
+          { "name": "status",        "type": "text",   "label": "System Status" },
+          { "name": "run_count",     "type": "number", "label": "Total Runs" },
+          { "name": "last_run",      "type": "date",   "label": "Last Run Timestamp" },
+          { "name": "ops_summary",   "type": "text",   "label": "Last Ops Assessment" },
+          { "name": "active_flags",  "type": "text",   "label": "Active Issues Flagged" },
+          { "name": "agent_tasks",   "type": "text",   "label": "Delegated Agent Tasks" },
+          { "name": "last_decision", "type": "text",   "label": "Last Decision Output" }
+        ],
+        "parameters": [
+          { "name": "datastore", "type": "datastore", "label": "Data store", "required": true }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": { "handleErrors": true, "useNewZLibDecompression": true },
+      "mapper": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "method": "post",
+        "bodyType": "raw",
+        "contentType": "application/json",
+        "parseResponse": true,
+        "headers": [
+          { "name": "x-api-key",         "value": "REPLACE_WITH_ANTHROPIC_API_KEY" },
+          { "name": "anthropic-version",  "value": "2023-06-01" },
+          { "name": "content-type",       "value": "application/json" },
+          { "name": "anthropic-beta",     "value": "mcp-client-1.4" }
+        ],
+        "data": "{\"model\":\"claude-sonnet-4-6\",\"max_tokens\":4000,\"system\":\"You are Orion Prime, the autonomous CEO agent for OKDF (Operator Kit for Digital Freedom). You run every 4 hours. You are an operator, not a reporter. When you see something that needs doing, you do it. You have full write access to Stripe, Notion, Netlify, Make.com, and Slack via MCP tools.\\n\\nEVERY CYCLE - RUN IN ORDER:\\n\\nSTEP 1 - PULL METRICS\\nUse Stripe MCP: current balance, payment intents last 24h (count, total, failed), disputes or refunds last 48h.\\nUse Notion MCP: In Progress and Pending tasks from OKDF Task Command Center (https://www.notion.so/821826225d3448939073ee5918a03c7b), Draft/Scheduled content from Content Queue (https://www.notion.so/e2bc3e61299a4e5d8f968a38e6c25ac5), last 5 entries from Orion Action Log (https://www.notion.so/073023c48c4a48c28599b619d78f3124).\\nUse Netlify MCP: deploy state for site d6da9efd-1edf-49ed-b46f-c039a43c0bf2, last deploy timestamp.\\n\\nSTEP 2 - ASSESS STATUS\\nGREEN: revenue flowing, no failures, tasks progressing, site live.\\nYELLOW: something needs attention (failed charges, stale tasks, deploy issue, no revenue in 24h).\\nRED: critical issue (Stripe dispute, site down, revenue stopped over 48h, P1 task overdue over 24h).\\n\\nSTEP 3 - ACT\\nContent: if any item Status=Scheduled and ScheduledFor is past, post it and update Notion record to Status=Posted. If queue empty over 24h, create Draft task in Notion titled 'Content gap -- needs new item' assigned to Lorenzo.\\nRevenue: if 0 successful payments in 24h and balance below $500, create Notion task 'Revenue alert -- no payments in 24h', priority High, assigned to Lorenzo. If failed payment intents in 24h, create Notion task 'Failed charges need review' with count and total, priority High.\\nTasks: for any In Progress task with due date over 2 days past, escalate to Slack. Never silently skip.\\nDeploys: if Netlify deploy state is not ready, post Slack escalation immediately.\\nStripe: you may update product descriptions and metadata, create payment links. You may NOT change prices without explicit instruction.\\n\\nSTEP 4 - LOG EVERY ACTION\\nAdd a row to Orion Action Log in Notion: Title (one-line summary), Type (content_post|task_create|task_update|escalation|revenue_action|deploy_action|status_update), Result (success|failed|pending), Cycle (ISO timestamp), Notes (context).\\n\\nSTEP 5 - ESCALATE IF NEEDED\\nIf escalation needed, post ONE Slack message: badge (RED/YELLOW), issue (one sentence), what you did, what you need from Lorenzo (one specific ask). Max 1 Slack message per cycle unless 2+ separate critical issues.\\n\\nRULES\\n1. Never send more than 1 Slack message per cycle unless 2+ separate critical issues.\\n2. Never modify Stripe prices without explicit instruction from Lorenzo.\\n3. Never close a Notion task you did not personally complete.\\n4. Always increment run_count -- this tracks agent health.\\n5. If you cannot connect to a service, mark status YELLOW and log the failure. Do not crash the cycle.\\n6. If uncertain about a decision involving money or public-facing action: Slack escalation, log it, skip it. Do not guess.\\n\\nOUTPUT FORMAT\\nRespond ONLY in valid JSON with exactly these keys. No markdown, no code fences, no extra text:\\n{\\\"status\\\": \\\"green|yellow|red\\\", \\\"ops_summary\\\": \\\"2-3 sentence plain English summary\\\", \\\"active_flags\\\": \\\"comma-separated flags or none\\\", \\\"agent_tasks\\\": \\\"what tasks Orion currently owns\\\", \\\"last_decision\\\": \\\"most important thing decided this cycle\\\", \\\"escalations_pending\\\": 0, \\\"actions_this_cycle\\\": [\\\"action 1\\\", \\\"action 2\\\"]}\",\"mcp_servers\":[{\"type\":\"url\",\"url\":\"https://mcp.make.com\",\"name\":\"make\",\"authorization_token\":\"REPLACE_WITH_MAKE_API_TOKEN\"},{\"type\":\"url\",\"url\":\"https://mcp.stripe.com\",\"name\":\"stripe\",\"authorization_token\":\"REPLACE_WITH_STRIPE_TOKEN\"},{\"type\":\"url\",\"url\":\"https://mcp.notion.com\",\"name\":\"notion\",\"authorization_token\":\"REPLACE_WITH_NOTION_TOKEN\"},{\"type\":\"url\",\"url\":\"https://netlify-mcp.netlify.app/mcp\",\"name\":\"netlify\",\"authorization_token\":\"REPLACE_WITH_NETLIFY_TOKEN\"},{\"type\":\"url\",\"url\":\"https://mcp.slack.com/mcp\",\"name\":\"slack\",\"authorization_token\":\"REPLACE_WITH_SLACK_TOKEN\"}],\"messages\":[{\"role\":\"user\",\"content\":\"Current time: {{now}}\\nPrevious state:\\n  status: {{ifempty(1.status, 'unknown')}}\\n  run_count: {{ifempty(1.run_count, 0)}}\\n  last_run: {{ifempty(1.last_run, 'Never')}}\\n  ops_summary: {{ifempty(1.ops_summary, 'No previous summary.')}}\\n  active_flags: {{ifempty(1.active_flags, 'none')}}\\n  agent_tasks: {{ifempty(1.agent_tasks, 'none')}}\\n  last_decision: {{ifempty(1.last_decision, 'none')}}\\n\\nExecute your full CEO cycle now. Pull live data from Stripe, Notion, and Netlify using your MCP tools. Respond in valid JSON only.\"}]}"
+      },
+      "onerror": [
+        {
+          "id": 10,
+          "module": "datastore:AddRecord",
+          "version": 1,
+          "parameters": { "datastore": 99050 },
+          "mapper": {
+            "key": "orion_state",
+            "values": {
+              "status":        "red",
+              "last_run":      "{{now}}",
+              "run_count":     "{{ifempty(parseNumber(1.run_count), 0) + 1}}",
+              "ops_summary":   "ERROR: CEO Runner failed to reach Claude API on run {{ifempty(parseNumber(1.run_count), 0) + 1}}. Check API key and MCP auth tokens.",
+              "active_flags":  "CLAUDE_API_FAILURE -- check x-api-key header and billing",
+              "agent_tasks":   "none",
+              "last_decision": "System auto-flagged API failure at {{now}}",
+              "escalations_pending": "1",
+              "actions_this_cycle": "[]"
+            }
+          },
+          "metadata": {
+            "designer": { "x": 300, "y": 200 },
+            "restore": {
+              "parameters": { "datastore": { "label": "OKDF Orion Prime Memory" } }
+            },
+            "parameters": [
+              { "name": "datastore", "type": "datastore", "label": "Data store", "required": true }
+            ]
+          }
+        }
+      ],
+      "metadata": {
+        "designer": { "x": 300, "y": 0 }
+      }
+    },
+    {
+      "id": 3,
+      "module": "json:ParseJSON",
+      "version": 1,
+      "parameters": {},
+      "mapper": { "json": "{{2.data.content[1].text}}" },
+      "metadata": {
+        "designer": { "x": 600, "y": 0 },
+        "interface": [
+          { "name": "status",               "type": "text",   "label": "Status" },
+          { "name": "ops_summary",          "type": "text",   "label": "Ops Summary" },
+          { "name": "active_flags",         "type": "text",   "label": "Active Flags" },
+          { "name": "agent_tasks",          "type": "text",   "label": "Agent Tasks" },
+          { "name": "last_decision",        "type": "text",   "label": "Last Decision" },
+          { "name": "escalations_pending",  "type": "number", "label": "Escalations Pending" },
+          { "name": "actions_this_cycle",   "type": "array",  "label": "Actions This Cycle" }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "module": "datastore:AddRecord",
+      "version": 1,
+      "parameters": { "datastore": 99050 },
+      "mapper": {
+        "key": "orion_state",
+        "values": {
+          "status":               "{{3.status}}",
+          "last_run":             "{{now}}",
+          "run_count":            "{{ifempty(parseNumber(1.run_count), 0) + 1}}",
+          "ops_summary":          "{{3.ops_summary}}",
+          "active_flags":         "{{3.active_flags}}",
+          "agent_tasks":          "{{3.agent_tasks}}",
+          "last_decision":        "{{3.last_decision}}",
+          "escalations_pending":  "{{3.escalations_pending}}",
+          "actions_this_cycle":   "{{join(3.actions_this_cycle, ', ')}}"
+        }
+      },
+      "metadata": {
+        "designer": { "x": 900, "y": 0 },
+        "restore": {
+          "parameters": { "datastore": { "label": "OKDF Orion Prime Memory" } }
+        },
+        "parameters": [
+          { "name": "datastore", "type": "datastore", "label": "Data store", "required": true }
+        ]
+      }
+    }
+  ]
+}
