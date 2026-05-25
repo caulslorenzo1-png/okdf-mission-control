@@ -90,7 +90,7 @@
       "module": "json:ParseJSON",
       "version": 1,
       "parameters": {},
-      "mapper": { "json": "{{2.data.content[1].text}}" },
+      "mapper": { "json": "{{2.data.content[0].text}}" },
       "metadata": {
         "designer": { "x": 600, "y": 0 },
         "interface": [
