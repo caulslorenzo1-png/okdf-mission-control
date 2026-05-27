@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Hugo output
+public/
+
+# Vite build artifacts (output to static/ for Hugo)
+static/js/
+static/css/
+static/assets/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

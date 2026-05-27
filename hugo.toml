@@ -1,0 +1,3 @@
+baseURL = "/"
+title = "OKDF Mission Control"
+disableKinds = ["taxonomy", "term", "RSS", "sitemap", "robotsTXT", "404"]

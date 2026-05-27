@@ -5,6 +5,19 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
     plugins: [react()],
+    build: {
+      outDir: 'static',
+      emptyOutDir: false,
+      rollupOptions: {
+        input: { app: 'src/main.jsx' },
+        output: {
+          entryFileNames: 'js/[name].js',
+          chunkFileNames: 'js/[name]-[hash].js',
+          assetFileNames: (assetInfo) =>
+            assetInfo.name?.endsWith('.css') ? 'css/app.css' : 'assets/[name][extname]',
+        },
+      },
+    },
     server: {
       proxy: {
         '/api/claude': {
